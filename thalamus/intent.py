@@ -103,6 +103,38 @@ _UTILITY_TERMS = re.compile(
           r"vertaal|vertaling|samenvatting|vat samen|samenvatten|herschrijf|herformuleer|extraheer|classificeer|corrigeer"),
     _A,
 )
+# 历史图片仍在请求里时，模型必须能看图；但只有本轮新图或明确追问图片时，
+# 才应把任务按 vision 估值。否则一张旧图会让后续每句闲聊都被判成 vision。
+_VISUAL_REF = re.compile(
+    r"图片|照片|图里|图中|这张图|那张图|截图|画面|颜色|色彩|看起来|"
+    + _en(r"image|picture|photo|screenshot|diagram|colour|color|looks? like|"
+          r"afbeelding|foto|schermafbeelding|kleur"),
+    _A,
+)
+# 首轮还没有 tool_result 时，也要认出明确要求网关动用工具完成的交易动作。
+# 限定开头的祈使表达，并排除询问操作方法；否则"如何预订"会被当成真正下单。
+_ACTION_ADVICE = re.compile(
+    r"如何|怎么|怎样|步骤|教程|方法|教我|告诉我(?:如何|怎么)|"
+    + _en(r"how (?:do|can|should|to)|how would|what(?:'s| is) the (?:way|process)|tips? (?:for|on)"),
+    _A,
+)
+_ACTION_VERB_ZH = r"(?:预订|预约|订购|下单|支付|付款|购买|买票|订票)"
+_ACTION_PREFIX_ZH = r"(?:(?:请|麻烦)?(?:帮我|替我|给我)|我(?:想|要|需要)(?:你|让你|请你)|请|麻烦|现在|直接|马上|去)"
+_ACTION_ZH = re.compile(
+    rf"^(?:{_ACTION_PREFIX_ZH})?(?:(?:用|使用)[^。！？\n]{{0,80}}?(?:去)?{_ACTION_VERB_ZH}|{_ACTION_VERB_ZH})"
+)
+_ACTION_EN = re.compile(
+    r"^(?:(?:please|can you|could you|would you|will you|i (?:need|want) (?:you )?to|go ahead and)\s+)?"
+    r"(?:book|reserve|order|purchase|buy|pay(?: for)?)\b"
+    r"|^(?:(?:please|can you|could you|would you)\s+)?(?:use|using)\b.{0,120}"
+    r"\b(?:book|reserve|order|purchase|buy|pay(?: for)?)\b",
+    _A,
+)
+
+
+def _action_intent(text: str) -> bool:
+    head = text.strip().lower()[:200]
+    return not _ACTION_ADVICE.search(head) and bool(_ACTION_ZH.search(head) or _ACTION_EN.search(head))
 _FOLLOWUP = re.compile(
     r"^\s*(?:继续|接着|然后呢|还有呢|好的?|嗯+|对|是的|不对|再来|改一下|换一种|重新来|再试试?|可以|行|没问题|"
     r"ok(?:ay)?|go on|continue|next|yes|no|thanks?|谢谢|"
@@ -230,9 +262,6 @@ def _score(f: Features) -> _Scores:
 
     utility = min(len(_UTILITY_TERMS.findall(low)), 3) * 2.2 + (2.0 if f.json_mode else 0.0)
     head = bool(_UTILITY_TERMS.search(low[:80]))
-    if f.n_user_turns > 2:
-        utility *= 0.4
-        head = False
     return _Scores(code, reason, utility, head, fences, big, deep, math, sig)
 
 
@@ -284,7 +313,7 @@ def classify(
         return Intent(task, _clamp(d), 1.0, "explicit", signals + ["alias"], latency_boost)
 
     # ② 结构
-    if f.n_images:
+    if f.last_user_images or (f.n_images and _VISUAL_REF.search(text.lower())):
         d = reason_difficulty() if s.reason >= 2.4 else code_difficulty() if s.code >= 3 else base_difficulty()
         return Intent("vision", _effort(f, _clamp(d)), 0.95, "structure", signals + [f"images:{f.n_images}"])
     if f.est_tokens >= long_threshold:
@@ -294,12 +323,15 @@ def classify(
         # 用本轮的工具步数，不用声明的工具数量：后者是客户端配置
         # （编码 agent 每次都声明 15-20 个），对"这次难不难"没有任何信息。
         d = 1
-        if f.loop_depth >= 5 or f.n_user_turns >= 8:
+        if f.loop_depth >= 5:
             d += 1
         if f.loop_depth >= 15 or s.big:
             d += 1
         return Intent("agent", _effort(f, _clamp(d)), 0.9, "structure",
                       signals + [f"tool_loop:{f.loop_depth}"])
+
+    if f.has_tools and _action_intent(text):
+        return Intent("agent", _effort(f, 1), 0.85, "rule", signals + ["action_intent"])
 
     # ③ 打分
     if _FOLLOWUP.match(text) or (len(text.strip()) <= 4 and s.code == 0 and s.reason == 0 and s.utility == 0):

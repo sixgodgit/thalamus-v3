@@ -58,6 +58,7 @@ class Features:
     prev_user: str
     est_tokens: int
     n_images: int
+    last_user_images: int  # 最近一条用户消息里的图片；历史图片仍计入 n_images 供能力过滤
     has_tools: bool
     n_tools: int
     in_tool_loop: bool
@@ -80,6 +81,7 @@ def extract(body: dict[str, Any], key_id: str, explicit_session: str | None = No
     msgs = body.get("messages") or []
     tokens = 0
     images = 0
+    last_user_images = 0
     users: list[str] = []
     system_head = ""
     last_user_at = -1
@@ -99,6 +101,7 @@ def extract(body: dict[str, Any], key_id: str, explicit_session: str | None = No
         elif role == "user":
             users.append(text)
             last_user_at = i
+            last_user_images = imgs
         elif role == "assistant":
             # 只看最近一条：客户端要么整体回传、要么整体不回传，而上游检查的是最近那轮
             echo = m.get("reasoning_content") or m.get("reasoning")
@@ -109,11 +112,10 @@ def extract(body: dict[str, Any], key_id: str, explicit_session: str | None = No
         tokens += estimate_tokens(json.dumps(tools, ensure_ascii=False))
     tokens += images * IMAGE_TOKENS
 
-    tail = [m for m in msgs[-6:] if isinstance(m, dict)]
-    in_loop = bool(tail) and (
-        tail[-1].get("role") == "tool"
-        or any(m.get("role") == "tool" or m.get("tool_calls") for m in tail)
-    )
+    # 工具调用只说明它所在的那一轮在循环。新 user 消息开启新一轮，不能因为
+    # 前一轮的 tool/tool_calls 还留在最近六条历史里，就把简单问题判成 agent。
+    current_turn = (m for m in msgs[last_user_at + 1:] if isinstance(m, dict))
+    in_loop = any(m.get("role") == "tool" or m.get("tool_calls") for m in current_turn)
     # 本轮已经走了几步。比"声明了几个工具"诚实得多：工具数量是客户端的属性
     # （编码 agent 每次请求都声明十几个），而走了十几步说明这个任务真的不好办。
     depth = sum(1 for m in msgs[last_user_at + 1:] if isinstance(m, dict) and m.get("role") == "tool")
@@ -137,6 +139,7 @@ def extract(body: dict[str, Any], key_id: str, explicit_session: str | None = No
         prev_user=(users[-2] if len(users) > 1 else "")[-4000:],
         est_tokens=tokens,
         n_images=images,
+        last_user_images=last_user_images,
         has_tools=bool(tools),
         n_tools=len(tools),
         in_tool_loop=in_loop,

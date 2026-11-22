@@ -826,6 +826,30 @@ class Call:
         # 所以缓冲不影响体验）；给人读的散文一旦开始流就不能收回。
         return bool(self.f.has_tools or self.f.json_mode)
 
+    async def _probe_stream_shape(self) -> bool:
+        """声明了工具时，看实际输出先是工具调用还是正文。
+
+        agent 通常每轮都附带 tools，即使模型最终只回答普通文字。只看请求字段会把
+        这种正文完整缓冲到结束，客户端直到回答完成才看到第一个流式片段。正文或
+        思考片段先出现时立即转发；之后即使出现工具调用，也不能再撤回已发的片段。
+        """
+        buf: list[Delta] = []
+        gen = self._stream_once()
+        try:
+            async for d in gen:
+                buf.append(d)
+                if d.tool_calls:
+                    return True
+                if d.content or d.reasoning or d.extra:
+                    return False
+            return True  # 空回答仍可由验证器判断是否需要重做
+        except UpstreamError as ex:
+            self._pending_error = ex
+            return False
+        finally:
+            self._replay = buf
+            await gen.aclose()
+
     @staticmethod
     def _sigma(c: Candidate, p: float) -> float:
         return c.value - (c.cost + c.latency_cost) / (1.0 - min(max(p, 0.0), 0.95))
@@ -880,6 +904,10 @@ class Call:
         if not self._can_retry():
             return
         pol = self.engine.settings.policy
+        assert self.f is not None
+        if self.stream and self.f.has_tools and not self.f.json_mode:
+            if not await self._probe_stream_shape():
+                return
         buf: list[Delta] = []
         try:
             async for d in self._stream_once():

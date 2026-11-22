@@ -80,6 +80,95 @@ def test_tools_without_loop_is_not_agent():
     assert classify(extract(body, "k"), 120_000).task == "chat"
 
 
+def test_previous_tool_call_does_not_turn_a_new_user_request_into_agent():
+    messages = [
+        {"role": "user", "content": "查一下天气"},
+        {"role": "assistant", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "w", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "c1", "content": "sunny"},
+        {"role": "assistant", "content": "今天晴天。"},
+    ]
+    tools = [{"type": "function", "function": {"name": f"tool_{i}"}} for i in range(16)]
+    for question, expected in (("你好", "chat"), ("Python 里怎么读文件？", "code")):
+        f = extract({"messages": messages + [{"role": "user", "content": question}], "tools": tools}, "k")
+        assert not f.in_tool_loop and f.loop_depth == 0
+        assert classify(f, 120_000).task == expected
+
+
+def test_agent_difficulty_uses_current_loop_depth_not_conversation_age():
+    messages = []
+    for _ in range(8):
+        messages.extend([{"role": "user", "content": "你好"}, {"role": "assistant", "content": "你好"}])
+    messages.extend([
+        {"role": "user", "content": "查一下天气"},
+        {"role": "assistant", "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "w", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "c1", "content": "sunny"},
+    ])
+    f = extract({"messages": messages, "tools": [{"type": "function", "function": {"name": "w"}}]}, "k")
+    assert f.in_tool_loop and f.loop_depth == 1 and f.n_user_turns == 9
+    assert classify(f, 120_000).label() == "agent/1"
+
+
+def test_historical_image_keeps_vision_capability_without_forcing_vision_task():
+    messages = [
+        {"role": "user", "content": [{"type": "text", "text": "这张照片是什么？"},
+                                      {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAA"}}]},
+        {"role": "assistant", "content": "这是一只猫。"},
+    ]
+    simple = extract({"messages": messages + [{"role": "user", "content": "你好"}]}, "k")
+    assert simple.n_images == 1 and simple.last_user_images == 0
+    assert classify(simple, 120_000).task == "chat"
+    followup = extract({"messages": messages + [{"role": "user", "content": "图里是什么颜色？"}]}, "k")
+    assert classify(followup, 120_000).task == "vision"
+
+
+def test_later_turn_still_recognizes_a_new_translation_request():
+    messages = [
+        {"role": "user", "content": "早上好"}, {"role": "assistant", "content": "你好"},
+        {"role": "user", "content": "今天怎么样"}, {"role": "assistant", "content": "很好"},
+        {"role": "user", "content": "翻译：我们明天见。"},
+    ]
+    assert classify(extract({"messages": messages}, "k"), 120_000).task == "utility"
+
+
+@pytest.mark.parametrize("prompt", [
+    "使用 Nyx 保险箱中的信用卡去预订停车场",
+    "帮我用信用卡预订停车位",
+    "请替我下单购买一张火车票",
+    "Book a parking space using the card in my Nyx vault",
+    "Can you reserve a parking spot for tonight?",
+    "Use my card to pay for the reservation",
+])
+def test_first_turn_booking_and_payment_use_agent_when_tools_are_available(prompt):
+    tools = [{"type": "function", "function": {"name": name}} for name in
+             ("nyx_vault_read", "parking_search", "parking_book", "payment_confirm")]
+    body = {"model": "thalamus/auto", "messages": [{"role": "user", "content": prompt}], "tools": tools}
+    f = extract(body, "k")
+    assert not f.in_tool_loop
+    it = classify(f, 120_000)
+    assert it.label() == "agent/1" and "action_intent" in it.signals
+
+
+@pytest.mark.parametrize("prompt", [
+    "如何用信用卡预订停车位？",
+    "请问怎么预订停车场？",
+    "请问预订停车场的规则",
+    "请分析停车场预订方案",
+    "请修复预订页面的代码",
+    "How do I book a parking space with my card?",
+    "Please explain how to reserve a parking spot",
+    "Please explain booking and payment options",
+    "Please fix the booking page code",
+])
+def test_booking_advice_is_not_a_tool_action(prompt):
+    body = {"messages": [{"role": "user", "content": prompt}],
+            "tools": [{"type": "function", "function": {"name": "parking_book"}}]}
+    assert classify(extract(body, "k"), 120_000).task != "agent"
+
+
+def test_booking_request_without_tools_does_not_claim_agent_capability():
+    assert _intent("帮我用信用卡预订停车位").task != "agent"
+
+
 def test_structure_long():
     it = _intent("请阅读：" + "字" * 200_000)
     assert it.task == "long"

@@ -343,8 +343,63 @@ def test_streamed_prose_is_never_buffered_for_retry(tmp_path):
     asyncio.run(go())
 
 
-def test_long_answer_gives_up_retry_instead_of_stalling(tmp_path):
-    """声明了工具却回了长篇散文：超过缓冲上限就放弃重试、恢复真正的流式。"""
+def test_declared_tools_do_not_delay_streamed_prose_or_reasoning(tmp_path):
+    """Agent 每轮都声明 tools；普通回复应在上游尾部结束前就开始流出。"""
+    import asyncio
+
+    from helpers import MockUpstream, gateway, new_key
+
+    class SlowProse(MockUpstream):
+        def __init__(self):
+            super().__init__()
+            self.mode = "prose"
+            self.started = asyncio.Event()
+            self.tail = asyncio.Event()
+
+        async def _openai(self, rule, model):
+            def chunk(delta, finish=None):
+                return "data: " + json.dumps({
+                    "id": "x", "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+                }) + "\n\n"
+
+            self.started.set()
+            field = "reasoning_content" if self.mode == "reasoning" else "content"
+            yield chunk({field: "first"})
+            await self.tail.wait()
+            yield chunk({"content": "last"})
+            yield chunk({}, "stop")
+            yield "data: [DONE]\n\n"
+
+    async def go():
+        mock = SlowProse()
+        async with gateway(tmp_path, mock, settings=prod_like(tmp_path)) as (app, client, _):
+            key = await app.state.engine.authenticate(await new_key(client))
+            for mode in ("prose", "reasoning"):
+                mock.mode = mode
+                mock.started = asyncio.Event()
+                mock.tail = asyncio.Event()
+                body = {"model": "deepseek-v4.1-flash", "stream": True,
+                        "messages": [{"role": "user", "content": "Say hello"}], "tools": TOOLS}
+                task = asyncio.create_task(app.state.engine.open(body, key, stream=True, task_header="chat"))
+                try:
+                    await asyncio.wait_for(mock.started.wait(), 1)
+                    call = await asyncio.wait_for(task, 1)
+                    events = call.sse(False)
+                    first = await asyncio.wait_for(events.__anext__(), 1)
+                    expected = '"reasoning_content":"first"' if mode == "reasoning" else '"content":"first"'
+                    assert expected in first
+                finally:
+                    mock.tail.set()
+                    if not task.done():
+                        task.cancel()
+                remainder = [event async for event in events]
+                assert any('"content":"last"' in event for event in remainder)
+
+    asyncio.run(go())
+
+
+def test_long_prose_with_declared_tools_stays_complete(tmp_path):
+    """声明了工具却回了长篇散文：正文应直接流出，内容仍须完整。"""
     import asyncio
 
     from helpers import MockUpstream, gateway, new_key, parse_sse

@@ -50,6 +50,26 @@ MODEL           = thalamus/auto
 每个响应都带 `X-Thalamus-Model`（实际服务的模型）、`X-Thalamus-Task`、`X-Thalamus-Attempts`、`X-Thalamus-Quota-Mode`。
 响应头里不暴露具体用的是哪个渠道。
 
+### Hermes / Conduit 的自动分类与响应速度
+
+`thalamus/auto` 根据最新的用户消息、图片、本轮工具调用、`reasoning_effort` 和输入长度分类，不额外调用模型：
+
+| 请求 | 任务 |
+|---|---|
+| 短问答 | `chat` |
+| 翻译或摘要 | `utility` |
+| 分析权衡 | `reason` |
+| 代码或报错 | `code` |
+| 本轮看图、追问历史图片 | `vision` |
+| 明确要求用工具执行预订、购买或付款 | `agent` |
+| 输入超过长上下文阈值 | `long` |
+
+一句话要求预订停车场仍是多步骤任务。旧轮次的工具调用或图片不会单独把新问题判成 `agent`/`vision`，但历史图片仍要求上游具备看图能力。
+
+排查慢请求时，先看管理台「请求日志」里的任务、模型、首 token、总耗时和尝试次数；「路由试算」可用脱敏后的消息查看分类和候选排名，不会调用上游。若 Hermes 固定传 `reasoning_effort: high`，短问答也会升到难度 3。若每一步都要等整段回答结束才出现，检查 Hermes 发给网关的请求是否带 `stream: true`，以及反向代理是否关闭 SSE 缓冲。
+
+语音中的工作进度由 Hermes / Conduit 负责反馈。网关只处理模型请求，不知道停车场网站或支付工具当前走到哪一步。
+
 ## 配置
 
 - `config/upstreams.yaml`：模型能力与质量先验，以及每个渠道提供哪些模型、价格、订阅窗口
@@ -61,7 +81,7 @@ MODEL           = thalamus/auto
 
 两个会直接改变"能用哪些上游"的开关，改之前先看启动日志里的 warning：
 
-- `global.min_context_tokens`（默认 `1000000`）：只对接原生上下文 ≥ 1M 的模型，不达标的 offer 被硬过滤。DeepSeek / GLM / Kimi 都按 1M 记，所以当前只排掉 MiniMax M3（200k）—— 副作用是 anthropic 适配器线上不会被走到。详见 `docs/DESIGN.md` 1.2。
+- `global.min_context_tokens`（默认 `1000000`）：要求原生上下文 ≥ 1M；默认只对 `chat` / `utility` 自动路由豁免此门槛，所以短请求仍可选 MiniMax M3（200k），并可能走到 anthropic 适配器。点名模型时不豁免。详见 `docs/DESIGN.md` 1.2。
 - `subscription_pacing.single_share`（默认 `0.15`）：一次请求最多占掉订阅窗口的比例。1M 上下文下一次请求就可能吃掉 5 小时窗口的四成，超过这个比例会被按平方抬价，自然溢出到按量渠道。
 - `keys.allowed_regions`（默认留空 = 不限）：新建 key 的区域白名单；每把 key 也可在管理台单独设置，设置后是硬约束。
 
