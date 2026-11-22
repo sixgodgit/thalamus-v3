@@ -1,0 +1,24 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -r requirements-dev.txt
+      - name: 单元与端到端测试（模拟上游，不需要真实 key）
+        run: python -m pytest
+      - name: 路由分类回归门槛
+        run: python scripts/eval_routing.py --min 0.9
+      - name: 短压测冒烟（只验证能跑通、无错误）
+        run: python scripts/loadtest.py --levels 1,10 --requests 40 --ttft-ms 50 --chunks 10 --chunk-ms 1

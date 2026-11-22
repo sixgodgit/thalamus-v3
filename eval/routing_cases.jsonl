@@ -1,0 +1,50 @@
+// 路由分类种子评测集。人工编写，覆盖 zh / en / nl 与结构信号。上线后请用真实（脱敏、经同意）请求扩充。
+{"id": "zh-chat-1", "lang": "zh", "text": "你好呀", "expect": "chat"}
+{"id": "zh-chat-2", "lang": "zh", "text": "帮我想一个咖啡店的名字", "expect": "chat"}
+{"id": "zh-chat-3", "lang": "zh", "text": "周末去杭州玩两天有什么推荐", "expect": "chat"}
+{"id": "zh-chat-4", "lang": "zh", "text": "今天心情不太好，陪我聊聊天吧", "expect": "chat"}
+{"id": "zh-code-1", "lang": "zh", "text": "用 Python 写一个读取 CSV 并按列求和的脚本", "expect": "code"}
+{"id": "zh-code-2", "lang": "zh", "text": "这个 SQL 为什么这么慢：SELECT * FROM orders WHERE user_id IN (SELECT id FROM users)", "expect": "code"}
+{"id": "zh-code-3", "lang": "zh", "text": "git push 报错 rejected non-fast-forward 怎么处理", "expect": "code"}
+{"id": "zh-code-4", "lang": "zh", "text": "帮我把这段 Java 代码改成 Kotlin", "expect": "code"}
+{"id": "zh-code-5", "lang": "zh", "text": "从零实现一个带鉴权的 REST API 服务，用 Go 写，整个项目要包含数据库迁移", "expect": "code", "difficulty": [2, 3]}
+{"id": "zh-code-6", "lang": "zh", "text": "服务器上 docker compose 起不来，端口被占用了", "expect": "code"}
+{"id": "zh-reason-1", "lang": "zh", "text": "分析一下最近黄金价格上涨的原因和未来走势", "expect": "reason"}
+{"id": "zh-reason-2", "lang": "zh", "text": "我应该先还房贷还是先投资？帮我权衡一下利弊", "expect": "reason"}
+{"id": "zh-reason-3", "lang": "zh", "text": "证明根号2是无理数", "expect": "reason", "difficulty": [2, 3]}
+{"id": "zh-reason-4", "lang": "zh", "text": "对比一下 A 股和美股的长期回报，评估一下风险", "expect": "reason"}
+{"id": "zh-util-1", "lang": "zh", "text": "把这段话翻译成日语：明天下午三点开会", "expect": "utility"}
+{"id": "zh-util-2", "lang": "zh", "text": "总结一下下面的会议纪要：今天讨论了第三季度的市场活动安排，决定在十月上旬举办线下沙龙，预算控制在五万元以内，由小李负责场地，小王负责宣传物料，下周一前提交方案。", "expect": "utility"}
+{"id": "zh-util-3", "lang": "zh", "text": "给这些评论打标签（好评/差评）：物流很快；包装破了；质量不错", "expect": "utility"}
+{"id": "en-chat-1", "lang": "en", "text": "hey, how's it going?", "expect": "chat"}
+{"id": "en-chat-2", "lang": "en", "text": "Write a haiku about autumn leaves", "expect": "chat"}
+{"id": "en-chat-3", "lang": "en", "text": "What's a good name for a bakery?", "expect": "chat"}
+{"id": "en-code-1", "lang": "en", "text": "How do I reverse a linked list in Java?", "expect": "code"}
+{"id": "en-code-2", "lang": "en", "text": "My React app re-renders infinitely when I call setState inside useEffect, why?", "expect": "code"}
+{"id": "en-code-3", "lang": "en", "text": "Fix this: TypeError: Cannot read properties of undefined (reading 'map')", "expect": "code"}
+{"id": "en-code-4", "lang": "en", "text": "Refactor the whole codebase to use dependency injection", "expect": "code", "difficulty": [2, 3]}
+{"id": "en-code-5", "lang": "en", "text": "kubectl says CrashLoopBackOff for my pod, how do I debug it", "expect": "code"}
+{"id": "en-reason-1", "lang": "en", "text": "Explain the trade-offs between PostgreSQL and MongoDB for an analytics workload", "expect": "reason"}
+{"id": "en-reason-2", "lang": "en", "text": "Analyze the risks of expanding our SaaS into the German market and propose a strategy", "expect": "reason"}
+{"id": "en-reason-3", "lang": "en", "text": "Prove that the sum of the first n odd numbers is n^2", "expect": "reason"}
+{"id": "en-util-1", "lang": "en", "text": "Translate to French: The meeting has been moved to Thursday.", "expect": "utility"}
+{"id": "en-util-2", "lang": "en", "text": "Summarize this email in two bullet points: Hi team, the launch is postponed by one week because the payment provider needs more time for compliance review. Please update your calendars.", "expect": "utility"}
+{"id": "en-util-3", "lang": "en", "text": "Extract the dates from: kickoff on March 3, review on April 18, launch May 30", "expect": "utility"}
+{"id": "nl-chat-1", "lang": "nl", "text": "Hoi! Hoe gaat het met je?", "expect": "chat"}
+{"id": "nl-chat-2", "lang": "nl", "text": "Kun je een grappig gedicht schrijven voor een collega die met pensioen gaat?", "expect": "chat"}
+{"id": "nl-chat-3", "lang": "nl", "text": "Wat is een leuke naam voor mijn kat?", "expect": "chat"}
+{"id": "nl-code-1", "lang": "nl", "text": "Waarom krijg ik een foutmelding als ik npm install draai?", "expect": "code"}
+{"id": "nl-code-2", "lang": "nl", "text": "Schrijf een Python functie die controleert of een getal een priemgetal is", "expect": "code"}
+{"id": "nl-code-3", "lang": "nl", "text": "Mijn Docker container start niet, de logs zeggen: Error: port 5432 already in use", "expect": "code"}
+{"id": "nl-reason-1", "lang": "nl", "text": "Vergelijk huren en kopen in Utrecht en geef je advies met voor- en nadelen", "expect": "reason"}
+{"id": "nl-reason-2", "lang": "nl", "text": "Analyseer de risico's van een renteverhoging voor starters op de woningmarkt", "expect": "reason"}
+{"id": "nl-util-1", "lang": "nl", "text": "Vertaal naar het Engels: wij zijn morgen gesloten.", "expect": "utility"}
+{"id": "nl-util-2", "lang": "nl", "text": "Vat samen in drie zinnen: De gemeente heeft besloten om het centrum autoluw te maken. Vanaf volgend jaar mogen alleen bewoners en leveranciers nog met de auto de binnenstad in. Ondernemers maken zich zorgen over de bereikbaarheid.", "expect": "utility"}
+{"id": "nl-util-3", "lang": "nl", "text": "Herschrijf deze e-mail zodat hij vriendelijker klinkt: stuur de factuur vandaag nog.", "expect": "utility"}
+{"id": "st-vision-1", "lang": "zh", "body": {"messages": [{"role": "user", "content": [{"type": "text", "text": "这张图里的表格帮我整理一下"}, {"type": "image_url", "image_url": {"url": "https://example.com/a.png"}}]}]}, "expect": "vision"}
+{"id": "st-agent-1", "lang": "en", "body": {"messages": [{"role": "user", "content": "book a table for two tonight"}, {"role": "assistant", "content": null, "tool_calls": [{"id": "c1", "type": "function", "function": {"name": "search_restaurants", "arguments": "{}"}}]}, {"role": "tool", "tool_call_id": "c1", "content": "[...]"}], "tools": [{"type": "function", "function": {"name": "search_restaurants"}}]}, "expect": "agent"}
+{"id": "st-tools-chat-1", "lang": "zh", "body": {"messages": [{"role": "user", "content": "你好"}], "tools": [{"type": "function", "function": {"name": "search"}}]}, "expect": "chat"}
+{"id": "st-long-1", "lang": "zh", "text": "请阅读以下材料并回答问题。", "repeat": 20000, "expect": "long"}
+{"id": "st-alias-1", "lang": "en", "body": {"model": "thalamus/reason-3", "messages": [{"role": "user", "content": "hi"}]}, "expect": "reason", "difficulty": [3, 3]}
+{"id": "st-effort-1", "lang": "zh", "body": {"reasoning_effort": "high", "messages": [{"role": "user", "content": "用 python 写个排序"}]}, "expect": "code", "difficulty": [3, 3]}
+{"id": "st-json-1", "lang": "en", "body": {"response_format": {"type": "json_object"}, "messages": [{"role": "user", "content": "Classify the sentiment: great product, fast shipping"}]}, "expect": "utility"}

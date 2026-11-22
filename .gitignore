@@ -1,0 +1,35 @@
+# ── 运行期状态：绝不上库 ──────────────────────────────
+.env
+.env.*
+!.env.example
+data/
+secrets.json
+config/channels.d/
+
+# ── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+.Python
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# ── 评测报告与临时产物（可再生成，且可能含真实调用记录）──
+eval/reports/
+test.db
+*.db
+*.db-wal
+*.db-shm
+
+# ── 本地备份 / 编辑器 ────────────────────────────────
+*.bak
+*.bak-*
+*.pre-totp
+*.removed-*
+*~
+.DS_Store
+.idea/
+.vscode/

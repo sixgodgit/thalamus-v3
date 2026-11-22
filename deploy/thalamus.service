@@ -1,0 +1,24 @@
+[Unit]
+Description=Thalamus model routing gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=thalamus
+WorkingDirectory=/opt/thalamus
+EnvironmentFile=/opt/thalamus/.env
+ExecStart=/opt/thalamus/.venv/bin/python main.py
+Restart=always
+RestartSec=3
+LimitNOFILE=65535
+NoNewPrivileges=true
+ProtectSystem=full
+# data/  ：数据库、每日备份、运行时密钥 secrets.json（0600）
+# config/：控制台"添加渠道"会写 config/channels.d/<id>.yaml
+# 两个目录都必须归 thalamus 所有，否则控制台加渠道会 EACCES：
+#   chown -R thalamus:thalamus /opt/thalamus/data /opt/thalamus/config
+ReadWritePaths=/opt/thalamus/data /opt/thalamus/config
+
+[Install]
+WantedBy=multi-user.target

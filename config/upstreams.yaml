@@ -1,0 +1,227 @@
+# ─────────────────────────────────────────────────────────────────────
+# 上游渠道与模型
+#
+# 价格单位：USD / 1M tokens。
+# 模型名、价格、额度以 2026-09 的官方文档为准，上线前务必运行
+#   python scripts/probe.py
+# 核对实际可用的模型名、usage 字段和缓存命中。
+# ─────────────────────────────────────────────────────────────────────
+
+# 模型能力（与渠道无关）
+#   context: 原生上下文窗口。这个数字是硬约束的输入：policy.yaml 的 min_context_tokens
+#            会据此排除不达标的 offer，所以写错会直接让某家上游整体不可用。
+#            DeepSeek / GLM / Kimi 均按 1M 记（用户确认），上线前用 probe.py 实测复核。
+#   quality: 各任务 0-10 的质量先验。路由按"够用就好"打分，
+#            这些分数是初始猜测，运行后由重新生成信号小幅校正。
+#   reasoning: none | hybrid | always（always = 正文前一定先输出思考，max_tokens 太小会没有正文）
+#   needs_reasoning_echo: 该模型是否要求把上一轮的 reasoning_content 原样回传，
+#            否则 400（GLM："The reasoning_content in the thinking mode must be passed back"）。
+#            默认跟 reasoning: always 走。reasoning_content 不是 OpenAI 规范里的字段，
+#            多数 webui 不会存也不会回传，所以这类模型在那些客户端上从第二轮起必然失败 ——
+#            网关会在路由时把它们排掉（硬约束，理由在管理台路由试算里能看到）。
+#            如果你确认某个 always 模型其实不要求回传，在它下面写 needs_reasoning_echo: false。
+#   tier: standard | pro（pro 模型只有 plan=pro 的 key 能用）
+models:
+
+  deepseek-v4.1-flash:
+    display: DeepSeek V4.1 Flash
+    context: 1000000
+    max_output: 384000
+    vision: true
+    tools: true
+    reasoning: hybrid
+    tier: standard
+    ttft_s: 0.9
+    tps: 80
+    quality: {utility: 8.0, chat: 7.6, code: 7.3, agent: 7.3, reason: 7.5, vision: 6.8, long: 7.6}
+
+  deepseek-v4-pro:
+    display: DeepSeek V4 Pro
+    context: 1000000
+    max_output: 384000
+    vision: false
+    tools: true
+    reasoning: hybrid
+    tier: standard
+    ttft_s: 1.8
+    tps: 45
+    quality: {utility: 8.2, chat: 8.3, code: 8.5, agent: 8.3, reason: 8.9, long: 8.4}
+
+  glm-5.3:
+    display: GLM-5.3
+    context: 1000000
+    max_output: 65536
+    vision: false
+    tools: true
+    reasoning: always
+    tier: standard
+    ttft_s: 1.7
+    tps: 50
+    quality: {utility: 8.0, chat: 8.3, code: 8.6, agent: 8.6, reason: 8.4, long: 8.0}
+
+  glm-5.3-flash:
+    display: GLM-5.3-Flash
+    context: 1000000
+    max_output: 65536
+    vision: false
+    tools: true
+    reasoning: always
+    tier: standard
+    ttft_s: 1.6
+    tps: 90
+    quality: {utility: 7.8, chat: 7.4, code: 7.4, agent: 7.5, reason: 7.2, long: 7.3}
+
+  kimi-k2.7-code:
+    display: Kimi K2.7 Code
+    context: 1000000
+    max_output: 32768
+    vision: false
+    tools: true
+    reasoning: hybrid
+    tier: standard
+    ttft_s: 1.8
+    tps: 60
+    quality: {utility: 7.6, chat: 7.8, code: 8.8, agent: 8.7, reason: 8.1, long: 8.0}
+
+  kimi-k3:
+    display: Kimi K3
+    context: 1000000
+    max_output: 65536
+    vision: false
+    tools: true
+    reasoning: always
+    tier: pro
+    ttft_s: 5.0
+    tps: 35
+    quality: {utility: 8.3, chat: 8.8, code: 9.1, agent: 9.0, reason: 9.2, long: 9.0}
+
+  minimax-m3:
+    display: MiniMax M3
+    context: 200000
+    max_output: 32768
+    vision: false
+    tools: true
+    reasoning: hybrid
+    tier: standard
+    ttft_s: 1.1
+    tps: 90
+    quality: {utility: 7.8, chat: 7.9, code: 8.1, agent: 8.2, reason: 7.9, long: 7.6}
+
+
+channels:
+
+  # ── DeepSeek 官方直充：按量付费，兜底地基 ──────────────────────────
+  # 峰时（UTC 周一至周五 01-04、06-10）价格 ×2。前缀缓存命中价约为未命中的 1/50，
+  # 所以同一会话尽量留在同一渠道。
+  deepseek:
+    kind: metered
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+    dialect: openai_chat
+    region: cn
+    max_concurrency: 200
+    pricing_time:
+      default: 1.0
+      windows:
+        - {weekdays: [0, 1, 2, 3, 4], hours_utc: [1, 4], multiplier: 2.0}
+        - {weekdays: [0, 1, 2, 3, 4], hours_utc: [6, 10], multiplier: 2.0}
+    offers:
+      deepseek-v4.1-flash:
+        upstream: deepseek-flash          # 官方定价页给出的 ID，用 probe.py 核对
+        price: {input: 0.15, cached: 0.003, output: 0.60}
+      deepseek-v4-pro:
+        upstream: deepseek-v4-pro
+        price: {input: 0.66, cached: 0.022, output: 1.98}
+
+  # ── GLM Coding Plan：订阅，按积分计，5 小时 + 每周双窗口 ──────────────
+  # 必须用 /api/coding/paas/v4 才扣套餐额度，其他地址会扣普通余额。
+  # 积分 = (输入×系数 + 缓存×系数 + 输出×系数) / 10000；
+  # 非高峰时段（北京时间工作日 14-18 点以外）积分减半。
+  # limits 按你的套餐改：Lite 2000/10000，Pro 12000/60000，Max 28000/140000。
+  # ⚠ 官方条款：套餐仅限在其支持的工具中使用。经网关转售有封号风险，见 docs/DESIGN.md。
+  glm_plan:
+    kind: subscription
+    base_url: https://open.bigmodel.cn/api/coding/paas/v4
+    api_key_env: GLM_PLAN_API_KEY
+    dialect: openai_chat
+    region: cn
+    max_concurrency: 6
+    budget:
+      unit: points
+      scope: shared
+      windows:
+        - {hours: 5, limit: 2000}
+        - {hours: 168, limit: 10000}
+      time:
+        default: 0.5
+        windows:
+          - {weekdays: [0, 1, 2, 3, 4], hours_utc: [6, 10], multiplier: 1.0}
+      exhausted_cooldown_s: 1800
+    offers:
+      glm-5.3:
+        upstream: glm-5.3
+        list_price: {input: 1.40, cached: 0.26, output: 4.40}
+        points: {input: 6.9, cached: 1.7, output: 24}
+        min_max_tokens: 2048
+      glm-5.3-flash:
+        upstream: glm-5.3-flash
+        list_price: {input: 0.15, cached: 0.03, output: 0.50}
+        points: {input: 2.3, cached: 0.56, output: 8}
+        min_max_tokens: 2048
+
+  # ── OpenCode Go：$10/月订阅，按标价折算额度 ─────────────────────────
+  # 5 小时 ≈ 月额度 20%，每周 ≈ 50%，每月 100%。monthly_usd 是该模型"一个月额度"对应的标价美元。
+  # scope: shared = 所有模型共用一份额度（保守）。如果你在 Go 控制台确认是按模型分开计，改成 per_model。
+  # 官方要求：自定义 User-Agent + 每个会话稳定的 x-opencode-session。
+  opencode_go:
+    kind: subscription
+    base_url: https://opencode.ai/zen/go/v1
+    api_key_env: OPENCODE_GO_API_KEY
+    dialect: openai_chat
+    region: us
+    max_concurrency: 8
+    user_agent: thalamus-gateway/3.0
+    headers:
+      x-opencode-session: "{session}"
+    budget:
+      unit: percent
+      scope: shared
+      windows:
+        - {hours: 5, limit: 20}
+        - {hours: 168, limit: 50}
+        - {hours: 720, limit: 100}
+      exhausted_cooldown_s: 1800
+    offers:
+      kimi-k2.7-code:
+        upstream: kimi-k2.7-code
+        list_price: {input: 0.95, cached: 0.19, output: 4.00}
+        monthly_usd: 60
+        # 实测（2026-10-04 校准跑）：这个模型只接受 temperature=1，其他值直接 400
+        # "invalid temperature: only 1 is allowed for this model"。网关原样透传客户端参数，
+        # 所以必须在这里覆盖掉，否则任何带 temperature 的客户端都会失败且不重试。
+        extra_body: {temperature: 1}
+      kimi-k3:
+        upstream: kimi-k3
+        list_price: {input: 3.00, cached: 0.30, output: 15.00}
+        monthly_usd: 15
+        min_max_tokens: 4096
+      glm-5.3:
+        upstream: glm-5.3
+        list_price: {input: 1.40, cached: 0.26, output: 4.40}
+        monthly_usd: 15
+        min_max_tokens: 2048
+      deepseek-v4.1-flash:
+        upstream: deepseek-v4.1-flash
+        list_price: {input: 0.15, cached: 0.003, output: 0.60}
+        monthly_usd: 60
+        pricing_time:
+          default: 1.0
+          windows:
+            - {weekdays: [0, 1, 2, 3, 4], hours_utc: [1, 4], multiplier: 2.0}
+            - {weekdays: [0, 1, 2, 3, 4], hours_utc: [6, 10], multiplier: 2.0}
+      minimax-m3:
+        upstream: minimax-m3
+        dialect: anthropic                # Go 上 MiniMax 走 /messages
+        list_price: {input: 0.30, cached: 0.06, output: 1.20}
+        monthly_usd: 60
+        think_tags: true                  # 正文里可能夹 <think>，网关拆到 reasoning_content
