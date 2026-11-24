@@ -10,7 +10,7 @@
 
 管理台可以分发 key、设置每日额度，还能实时查看路由决策、渠道健康和订阅窗口用量。
 
-设计思路见 [docs/DESIGN.md](docs/DESIGN.md)。**上线前请先读其中的"风险"一节。**
+设计思路见 [docs/DESIGN.md](docs/DESIGN.md)。可选的 Jev 打分后仲裁方案见 [docs/JEV_ARBITRATION.md](docs/JEV_ARBITRATION.md)，目前仅为设计，尚未接入。**上线前请先读主设计文档中的"风险"一节。**
 
 ---
 
